@@ -1,0 +1,39 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+.npm-cache/
+
+# Generated artifacts
+dist/
+.next/
+.expo/
+.turbo/
+coverage/
+*.tsbuildinfo
+apps/mobile/android/
+apps/mobile/ios/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.mobileprovision
+.aws/
+
+# Infrastructure state
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Local tools and logs
+.DS_Store
+Thumbs.db
+*.log
+.local/
+playwright-report/
+test-results/

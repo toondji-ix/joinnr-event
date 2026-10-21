@@ -1,0 +1,1519 @@
+openapi: 3.1.0
+info:
+  title: Joinnr foundation API contracts
+  version: 0.3.0
+  description: 'Phase-four contract foundation: organization/event creation, access resolution and
+    connection request lifecycle and self profile interests/goals. Specifications only; no routes, authentication or database
+    enforcement implemented. Examples are synthetic; provider and policy gates remain open.'
+servers:
+  - url: /v1
+    description: Same-origin API prefix; no deployment hostname is presumed.
+security:
+  - accessToken: []
+tags:
+  - name: Organizations
+    description: Tenant ownership established by a verified, MFA-authenticated user.
+  - name: Events
+    description: Conference-only event lifecycle, scoped to the owning organization.
+  - name: Access
+    description: Safe event preview; access resolution does not admit an attendee.
+  - name: Requests
+    description: Event-scoped explicit connection requests; acceptance never discloses contacts.
+  - name: Profiles
+    description: Self-only event profile updates; taxonomy selections do not grant networking access.
+paths:
+  /organizations:
+    post:
+      operationId: createOrganization
+      summary: Create an organization and its owner membership atomically
+      description:
+        Requires a verified account and MFA. The actor comes from validated authentication,
+        never from the request body. Ownership is assigned by the service, not by a supplied role.
+        Idempotent replay returns the same logical result. This contract does not implement identity
+        or persistence.
+      tags:
+        - Organizations
+      x-authorization:
+        actor: verified-user-with-mfa
+        scope: self
+        invariants:
+          - server-assigned-owner
+          - atomic-owner-membership
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationInput'
+            examples:
+              synthetic:
+                summary: Synthetic organization name
+                value:
+                  name: Synthetic Conference Team
+      responses:
+        '201':
+          description: Organization and owner membership committed in one transaction.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000001
+                      name: Synthetic Conference Team
+                      version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /organizations/{oid}/events:
+    post:
+      operationId: createEvent
+      summary: Create a conference draft in an owned organization
+      description:
+        Organization ownership is checked against current server-side membership. Other staff
+        cannot create events in the MVP. An inaccessible organization returns the same 404 as an
+        unknown ID. Draft creation must not generate access credentials, publish an event, or enroll
+        its creator as an attendee. The initial capacity envelope is a proposed engineering
+        baseline, not a validated business commitment.
+      tags:
+        - Events
+      x-authorization:
+        actor: organization-owner
+        scope: organization-path
+        invariants:
+          - current-membership
+          - staff-mfa
+          - conceal-inaccessible-object
+          - conference-only
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+            examples:
+              synthetic:
+                summary: Synthetic conference and dates; not a pilot commitment
+                value:
+                  title: Synthetic Technology Conference
+                  description: Contract validation example only.
+                  category: technology_conference
+                  timezone: Africa/Lagos
+                  starts_at: 2027-01-20T08:00:00Z
+                  ends_at: 2027-01-20T17:00:00Z
+                  admission_opens_at: 2027-01-13T08:00:00Z
+                  admission_closes_at: 2027-01-20T12:00:00Z
+                  networking_opens_at: 2027-01-13T08:00:00Z
+                  networking_closes_at: 2027-01-27T17:00:00Z
+                  capacity: 500
+                  admission_mode: approval
+      responses:
+        '201':
+          description: Draft created with an organizer assignment for the creator.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DraftEventEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000002
+                      organization_id: 01900000-0000-7000-8000-000000000001
+                      status: draft
+                      version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /access/resolve:
+    post:
+      operationId: resolveEventAccess
+      summary: Resolve one event credential to a safe preview and short-lived intent
+      description:
+        Public and rate-limited. Accept exactly one credential. An invalid, expired, rotated,
+        closed or cancelled credential receives the same generic 400. Response must not contain
+        members, contacts, profile data or the supplied credential. Signed intent lifetime is at
+        most 10 minutes and never exceeds credential expiry. Later enrollment revalidates credential
+        version and event policy; this operation does not reserve capacity or grant admission.
+      tags:
+        - Access
+      security: []
+      x-authorization:
+        actor: public
+        scope: credential
+        invariants:
+          - generic-invalid-credential
+          - safe-preview-only
+          - no-admission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccessResolutionInput'
+            examples:
+              syntheticCode:
+                summary: Synthetic eight-character code
+                value:
+                  join_code: AB23CD45
+              syntheticLink:
+                summary: Synthetic opaque credential, never a real invitation
+                value:
+                  link_token: synthetic_contract_token_00000001
+      responses:
+        '200':
+          description: Published-event preview and a credential-bound join intent.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessResolutionEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      event:
+                        id: 01900000-0000-7000-8000-000000000002
+                        organization_name: Synthetic Conference Team
+                        title: Synthetic Technology Conference
+                        category: technology_conference
+                        timezone: Africa/Lagos
+                        starts_at: 2027-01-20T08:00:00Z
+                        ends_at: 2027-01-20T17:00:00Z
+                        admission_opens_at: 2027-01-13T08:00:00Z
+                        admission_closes_at: 2027-01-20T12:00:00Z
+                        networking_opens_at: 2027-01-13T08:00:00Z
+                        networking_closes_at: 2027-01-27T17:00:00Z
+                        admission_mode: approval
+                        status: published
+                      join_intent: synthetic_signed_intent_not_a_real_token
+                      expires_at: 2027-01-13T08:10:00Z
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /events/{eid}/requests:
+    post:
+      operationId: createConnectionRequest
+      summary: Send an explicit event-scoped connection request
+      tags:
+        - Requests
+      description: 'Eligible self only. Verify both current accounts, active same-event memberships,
+        networking consent, live relationship, blocks, quotas and open networking window. A
+        recommendation must belong to the sender/event/pair. Omission of recommendation_id never
+        authorizes guessed IDs: an existing received-request relation is required instead.
+        Canonicalize and lock the pair. An existing same-direction or crossed pending request
+        returns 200 without auto-accepting or changing sender/receiver. New requests commit once
+        with minimal outbox facts. No contacts are returned. All live checks remain unimplemented.'
+      x-authorization:
+        actor: eligible-attendee
+        scope: event-and-pair
+        invariants:
+          - active-same-event-memberships
+          - live-networking-consent
+          - live-authorized-relation
+          - no-self-or-blocked-pair
+          - open-networking-window
+          - canonical-pair-lock
+          - crossed-request-never-auto-accepts
+          - transactional-outbox
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RequestInput'
+            examples:
+              synthetic:
+                value:
+                  target_mid: 01900000-0000-7000-8000-000000000004
+                  recommendation_id: 01900000-0000-7000-8000-000000000007
+                  intro: Synthetic introduction only.
+      responses:
+        '200':
+          description: Existing same-direction or crossed pending request; receiver must explicitly decide.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingRequestEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000005
+                      event_id: 01900000-0000-7000-8000-000000000002
+                      sender:
+                        membership_id: 01900000-0000-7000-8000-000000000003
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      receiver:
+                        membership_id: 01900000-0000-7000-8000-000000000004
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      status: pending
+                      created_at: 2027-01-20T09:00:00Z
+                      expires_at: 2027-01-27T17:00:00Z
+                      version: 1
+        '201':
+          description: New pending request; no contact sharing.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingRequestEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000005
+                      event_id: 01900000-0000-7000-8000-000000000002
+                      sender:
+                        membership_id: 01900000-0000-7000-8000-000000000003
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      receiver:
+                        membership_id: 01900000-0000-7000-8000-000000000004
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      status: pending
+                      created_at: 2027-01-20T09:00:00Z
+                      expires_at: 2027-01-27T17:00:00Z
+                      version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /events/{eid}/requests/{rid}/accept:
+    post:
+      operationId: acceptConnectionRequest
+      summary: Accept a pending connection request
+      tags:
+        - Requests
+      description:
+        "Only the request-receiver may act. Require the request's strong If-Match version; no
+        JSON body is accepted. Resolve event/request/memberships from current server state, conceal
+        inaccessible IDs, and lock the canonical pair/request with a lock order compatible with
+        block. Recheck account, membership, block, event/networking and request expiry using trusted
+        transaction time; scheduler delay cannot extend permission. Require pending state: 409 for a
+        terminal or expired request, 412 for a stale version after access checks. Acceptance creates
+        one active connection and outbox fact atomically with the request transition. It creates no
+        contact grants and returns no contact fields. Idempotent replay requires live authorization
+        before returning safe current state. Real transaction, authorization and concurrency
+        enforcement are future work."
+      x-authorization:
+        actor: request-receiver
+        scope: event-request-pair
+        invariants:
+          - active-same-event-memberships
+          - live-participant-role
+          - pending-request-only
+          - open-networking-window
+          - live-request-expiry
+          - no-blocked-pair
+          - strong-request-version
+          - canonical-pair-lock
+          - transactional-outbox
+          - live-networking-consent
+          - unique-connection
+          - no-automatic-contact-grants
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IfMatch'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Connection created without contact grants. ETag is the connection version.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectionEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000006
+                      event_id: 01900000-0000-7000-8000-000000000002
+                      request_id: 01900000-0000-7000-8000-000000000005
+                      member_low: 01900000-0000-7000-8000-000000000003
+                      member_high: 01900000-0000-7000-8000-000000000004
+                      status: active
+                      connected_at: 2027-01-20T09:01:00Z
+                      version: 1
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /events/{eid}/requests/{rid}/decline:
+    post:
+      operationId: declineConnectionRequest
+      summary: Decline a pending connection request
+      tags:
+        - Requests
+      description:
+        "Only the request-receiver may act. Require the request's strong If-Match version; no
+        JSON body is accepted. Resolve event/request/memberships from current server state, conceal
+        inaccessible IDs, and lock the canonical pair/request with a lock order compatible with
+        block. Recheck account, membership, block, event/networking and request expiry using trusted
+        transaction time; scheduler delay cannot extend permission. Require pending state: 409 for a
+        terminal or expired request, 412 for a stale version after access checks. Increment request
+        version and commit the transition with minimal outbox facts; never modify a terminal request
+        or restore contact access. Real transaction, authorization and concurrency enforcement are
+        future work."
+      x-authorization:
+        actor: request-receiver
+        scope: event-request-pair
+        invariants:
+          - active-same-event-memberships
+          - live-participant-role
+          - pending-request-only
+          - open-networking-window
+          - live-request-expiry
+          - no-blocked-pair
+          - strong-request-version
+          - canonical-pair-lock
+          - transactional-outbox
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Pending request transitioned. ETag is the new request version.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeclinedRequestEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000005
+                      event_id: 01900000-0000-7000-8000-000000000002
+                      sender:
+                        membership_id: 01900000-0000-7000-8000-000000000003
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      receiver:
+                        membership_id: 01900000-0000-7000-8000-000000000004
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      status: declined
+                      created_at: 2027-01-20T09:00:00Z
+                      expires_at: 2027-01-27T17:00:00Z
+                      version: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /events/{eid}/requests/{rid}/withdraw:
+    post:
+      operationId: withdrawConnectionRequest
+      summary: Withdraw a pending connection request
+      tags:
+        - Requests
+      description:
+        "Only the request-sender may act. Require the request's strong If-Match version; no
+        JSON body is accepted. Resolve event/request/memberships from current server state, conceal
+        inaccessible IDs, and lock the canonical pair/request with a lock order compatible with
+        block. Recheck account, membership, block, event/networking and request expiry using trusted
+        transaction time; scheduler delay cannot extend permission. Require pending state: 409 for a
+        terminal or expired request, 412 for a stale version after access checks. Increment request
+        version and commit the transition with minimal outbox facts; never modify a terminal request
+        or restore contact access. Real transaction, authorization and concurrency enforcement are
+        future work."
+      x-authorization:
+        actor: request-sender
+        scope: event-request-pair
+        invariants:
+          - active-same-event-memberships
+          - live-participant-role
+          - pending-request-only
+          - open-networking-window
+          - live-request-expiry
+          - no-blocked-pair
+          - strong-request-version
+          - canonical-pair-lock
+          - transactional-outbox
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Pending request transitioned. ETag is the new request version.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/PrivateNoStore'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawnRequestEnvelope'
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      id: 01900000-0000-7000-8000-000000000005
+                      event_id: 01900000-0000-7000-8000-000000000002
+                      sender:
+                        membership_id: 01900000-0000-7000-8000-000000000003
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      receiver:
+                        membership_id: 01900000-0000-7000-8000-000000000004
+                        event_id: 01900000-0000-7000-8000-000000000002
+                        display_name: Synthetic attendee
+                        headline: Contract fixture
+                        interests:
+                          - Platforms
+                          - Accessibility
+                          - Testing
+                        goals:
+                          - Offer platform mentorship
+                      status: withdrawn
+                      created_at: 2027-01-20T09:00:00Z
+                      expires_at: 2027-01-27T17:00:00Z
+                      version: 2
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/TooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /events/{eid}/profile/interests:
+    put:
+      operationId: replaceProfileInterests
+      summary: Replace the active member's own event interests
+      description: >-
+        Active self membership and an existing profile are required. The actor is derived
+        from verified authentication; event ID alone grants nothing. Require If-Match of
+        the current profile version. Validate all IDs against active approved taxonomy,
+        replace the complete selection, increment profile version, invalidate derived
+        recommendations/vectors and write minimal outbox facts in one transaction.
+        No automatic networking or semantic consent. A stale retry gets 412 rather than
+        silently overwriting a later edit. This specification implements no route or storage.
+      tags: [Profiles]
+      x-authorization:
+        actor: active-self-member
+        scope: event-self-profile
+        invariants:
+          [
+            live-account,
+            active-same-event-membership,
+            self-only,
+            existing-profile,
+            strong-profile-version,
+            active-taxonomy,
+            atomic-derived-invalidation,
+            transactional-outbox,
+          ]
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileInterestsInput' }
+            examples:
+              synthetic:
+                value:
+                  interest_ids:
+                    - 01900000-0000-7000-8000-000000000101
+                    - 01900000-0000-7000-8000-000000000102
+                    - 01900000-0000-7000-8000-000000000103
+      responses:
+        '200':
+          description: Selection replaced; returned ETag is the new profile version, not a consent version.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ProfileETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileInterestsEnvelope' }
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      version: 2
+                      interest_ids:
+                        - 01900000-0000-7000-8000-000000000101
+                        - 01900000-0000-7000-8000-000000000102
+                        - 01900000-0000-7000-8000-000000000103
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /events/{eid}/profile/goals:
+    put:
+      operationId: replaceProfileGoals
+      summary: Replace the active member's own event goals
+      description: >-
+        Active self membership and an existing profile are required. Require the current
+        profile's If-Match version. Validate active topic IDs and unique direction/topic
+        pairs; uniqueItems alone cannot enforce the composite identity when detail differs.
+        Offer-only profiles are valid. Replace goals, increment profile version, invalidate
+        derived data and write minimal outbox facts atomically. Private detail is returned
+        only to its author here, never in PublicProfile, analytics, logs or outbox. Treat all
+        text as plain data; no raw HTML. No consent is implicitly granted. Retention and
+        cancelled/expired-event editing remain policy-gated. No runtime implementation.
+      tags: [Profiles]
+      x-authorization:
+        actor: active-self-member
+        scope: event-self-profile
+        invariants:
+          [
+            live-account,
+            active-same-event-membership,
+            self-only,
+            existing-profile,
+            strong-profile-version,
+            active-taxonomy,
+            unique-direction-topic,
+            private-detail-author-only,
+            atomic-derived-invalidation,
+            transactional-outbox,
+          ]
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileGoalsInput' }
+            examples:
+              synthetic:
+                value:
+                  goals:
+                    - direction: offer
+                      topic_id: 01900000-0000-7000-8000-000000000104
+                      public_summary: Offer platform mentorship
+                      priority: 1
+      responses:
+        '200':
+          description: Author-only goal selection and new profile version; no peer/contact/style data.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+            ETag: { $ref: '#/components/headers/ProfileETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileGoalsEnvelope' }
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      version: 3
+                      goals:
+                        - direction: offer
+                          topic_id: 01900000-0000-7000-8000-000000000104
+                          public_summary: Offer platform mentorship
+                          priority: 1
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    accessToken:
+      type: http
+      scheme: bearer
+      description:
+        Validated API access token; ID tokens and caller-supplied actor/role headers are not
+        accepted. Identity-provider configuration is a later phase.
+  parameters:
+    OrganizationId:
+      name: oid
+      in: path
+      required: true
+      description: Organization identifier; possession does not confer authority.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description:
+        CSPRNG-generated key with at least 128 bits of entropy, scoped to actor and route for
+        24 hours. Syntax validation cannot prove randomness. Reuse with a different request body
+        returns 409.
+      schema:
+        type: string
+        minLength: 22
+        maxLength: 128
+        pattern: ^[A-Za-z0-9_-]+$
+    EventId:
+      name: eid
+      in: path
+      required: true
+      description: Event scope; live membership and resource relationships must be checked.
+      schema: &a1
+        $ref: '#/components/schemas/Uuid'
+    RequestId:
+      name: rid
+      in: path
+      required: true
+      description: Request in the path event; inaccessible and unknown IDs return the same 404.
+      schema: *a1
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: One strong quoted positive resource version, e.g. "1". Each operation identifies
+        whether this is a request or profile version. Wildcards, weak validators and
+        lists are not accepted. Service validates safe-integer range; 428 if missing, 412 if stale.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 18
+        pattern: ^"[1-9][0-9]{0,15}"$
+  headers:
+    ProfileETag:
+      description: Strong quoted version of the self event profile; not a request, connection or consent version.
+      schema: { type: string, pattern: '^"[1-9][0-9]{0,15}"$' }
+    PrivateNoStore:
+      description: Authenticated private response; no storage by any cache.
+      schema:
+        type: string
+        const: private, no-store
+    NoStore:
+      description: Do not cache credentials, private objects or their envelopes.
+      schema:
+        type: string
+        const: no-store
+    RetryAfter:
+      description: Positive delay in seconds before retry; no automatic unlimited retry.
+      schema:
+        type: integer
+        minimum: 1
+    ETag:
+      description: Strong quoted version of the returned request or connection, not a contact grant version.
+      schema:
+        type: string
+        pattern: ^"[1-9][0-9]{0,15}"$
+  responses:
+    BadRequest:
+      description: Malformed request or generic invalid/unavailable access credential.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing, expired, revoked or invalid authentication.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Accessible resource, but required role, verification or MFA is absent.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource is unknown or inaccessible; no existence disclosure.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: State or idempotency key conflicts with the requested mutation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooLarge:
+      description: Request exceeds the configured transport or body-size limit.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ValidationFailed:
+      description: Safe field errors only; do not return supplied secrets or internal errors.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: Request quota exceeded.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Temporary service failure; return a safe public code and request ID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: Conditional resource version is stale. No mutation or side effect is committed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionRequired:
+      description: If-Match resource version is required. No mutation is committed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    ProfileInterestsInput:
+      type: object
+      additionalProperties: false
+      required: [interest_ids]
+      properties:
+        interest_ids: { $ref: '#/components/schemas/InterestIds' }
+    InterestIds:
+      type: array
+      minItems: 3
+      maxItems: 10
+      uniqueItems: true
+      items: { $ref: '#/components/schemas/Uuid' }
+    GoalInput:
+      type: object
+      additionalProperties: false
+      required: [direction, topic_id, public_summary, priority]
+      properties:
+        direction: { type: string, enum: [seek, offer] }
+        topic_id: { $ref: '#/components/schemas/Uuid' }
+        public_summary: { type: string, minLength: 1, maxLength: 160, pattern: '\S' }
+        detail: { type: string, maxLength: 240 }
+        priority: { type: integer, minimum: 1, maximum: 3 }
+    GoalSelection:
+      type: array
+      minItems: 1
+      maxItems: 3
+      uniqueItems: true
+      items: { $ref: '#/components/schemas/GoalInput' }
+    ProfileGoalsInput:
+      type: object
+      additionalProperties: false
+      required: [goals]
+      properties:
+        goals: { $ref: '#/components/schemas/GoalSelection' }
+    ProfileInterestsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [version, interest_ids]
+          properties:
+            version: { $ref: '#/components/schemas/Version' }
+            interest_ids: { $ref: '#/components/schemas/InterestIds' }
+    ProfileGoalsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required: [version, goals]
+          properties:
+            version: { $ref: '#/components/schemas/Version' }
+            goals: { $ref: '#/components/schemas/GoalSelection' }
+    Uuid:
+      type: string
+      format: uuid
+    UtcTimestamp:
+      type: string
+      format: date-time
+      pattern: Z$
+      description: RFC 3339 instant using canonical UTC Z representation.
+    Version:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    ConferenceCategory:
+      type: string
+      enum:
+        - technology_conference
+        - business_conference
+        - startup_summit
+        - corporate_networking
+    AdmissionMode:
+      type: string
+      enum:
+        - shared
+        - approval
+    TimeZone:
+      type: string
+      format: iana-time-zone
+      minLength: 1
+      maxLength: 64
+      description: Named IANA timezone accepted by the service timezone database; not a UTC offset.
+    OrganizationInput:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: \S
+    OrganizationEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - name
+            - version
+          properties:
+            id:
+              $ref: '#/components/schemas/Uuid'
+            name:
+              type: string
+              minLength: 1
+              maxLength: 160
+              pattern: \S
+            version:
+              $ref: '#/components/schemas/Version'
+    EventInput:
+      type: object
+      additionalProperties: false
+      required:
+        - title
+        - description
+        - category
+        - timezone
+        - starts_at
+        - ends_at
+        - admission_opens_at
+        - admission_closes_at
+        - networking_opens_at
+        - networking_closes_at
+        - capacity
+        - admission_mode
+      description:
+        Shape validation only. Chronological comparisons, live taxonomy/policy, capacity races
+        and membership authorization require later domain services.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: \S
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          pattern: \S
+        category:
+          $ref: '#/components/schemas/ConferenceCategory'
+        timezone:
+          $ref: '#/components/schemas/TimeZone'
+        starts_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        ends_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        admission_opens_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        admission_closes_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        networking_opens_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        networking_closes_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 5000
+        admission_mode:
+          $ref: '#/components/schemas/AdmissionMode'
+    DraftEventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - organization_id
+            - status
+            - version
+          properties:
+            id:
+              $ref: '#/components/schemas/Uuid'
+            organization_id:
+              $ref: '#/components/schemas/Uuid'
+            status:
+              type: string
+              const: draft
+            version:
+              $ref: '#/components/schemas/Version'
+    AccessResolutionInput:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - link_token
+          properties:
+            link_token:
+              type: string
+              minLength: 22
+              maxLength: 128
+              pattern: ^[A-Za-z0-9_-]+$
+        - type: object
+          additionalProperties: false
+          required:
+            - join_code
+          properties:
+            join_code:
+              type: string
+              pattern: ^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$
+              description: Canonical uppercase Crockford Base32; clients normalize code entry.
+    EventSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - organization_name
+        - title
+        - category
+        - timezone
+        - starts_at
+        - ends_at
+        - admission_opens_at
+        - admission_closes_at
+        - networking_opens_at
+        - networking_closes_at
+        - admission_mode
+        - status
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        organization_name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: \S
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: \S
+        category:
+          $ref: '#/components/schemas/ConferenceCategory'
+        timezone:
+          $ref: '#/components/schemas/TimeZone'
+        starts_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        ends_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        admission_opens_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        admission_closes_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        networking_opens_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        networking_closes_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        admission_mode:
+          $ref: '#/components/schemas/AdmissionMode'
+        status:
+          type: string
+          const: published
+    AccessResolutionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          required:
+            - event
+            - join_intent
+            - expires_at
+          properties:
+            event:
+              $ref: '#/components/schemas/EventSummary'
+            join_intent:
+              type: string
+              minLength: 1
+              maxLength: 4096
+              description: Opaque signed intent, not an access token; never decode/trust it client-side.
+            expires_at:
+              $ref: '#/components/schemas/UtcTimestamp'
+    Problem:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - title
+        - status
+        - code
+        - request_id
+      properties:
+        type:
+          type: string
+          format: uri
+          maxLength: 256
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,63}$
+        request_id:
+          $ref: '#/components/schemas/Uuid'
+        field_errors:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - field
+              - code
+            properties:
+              field:
+                type: string
+                minLength: 1
+                maxLength: 160
+              code:
+                type: string
+                pattern: ^[a-z][a-z0-9_]{0,63}$
+    PublicProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - membership_id
+        - event_id
+        - display_name
+        - headline
+        - interests
+        - goals
+      properties:
+        membership_id: *a1
+        event_id: *a1
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: \S
+        headline:
+          type: string
+          minLength: 1
+          maxLength: 120
+          pattern: \S
+        company:
+          type: string
+          maxLength: 120
+        bio:
+          type: string
+          maxLength: 1000
+        avatar_asset_id: *a1
+        experience_level:
+          type: string
+          enum:
+            - early
+            - mid
+            - senior
+            - prefer_not
+        experience_preference:
+          type: string
+          enum:
+            - peer
+            - learn
+            - share
+            - any
+        interests:
+          type: array
+          minItems: 3
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 160
+            pattern: \S
+        goals:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: string
+            minLength: 1
+            maxLength: 160
+            pattern: \S
+      description:
+        Public event projection only. Live relation/consent and event checks precede reads. No
+        contacts, raw style, private goals or internal user IDs. Interest labels have a technical
+        wire bound of 160 characters; label uniqueness is not implied.
+    RequestInput:
+      type: object
+      additionalProperties: false
+      required:
+        - target_mid
+      properties:
+        target_mid: *a1
+        recommendation_id: *a1
+        intro:
+          type: string
+          minLength: 1
+          maxLength: 240
+          pattern: \S
+    PendingRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - event_id
+        - sender
+        - receiver
+        - status
+        - created_at
+        - expires_at
+        - version
+      properties:
+        id: *a1
+        event_id: *a1
+        sender: &a2
+          $ref: '#/components/schemas/PublicProfile'
+        receiver: &a3
+          $ref: '#/components/schemas/PublicProfile'
+        status:
+          type: string
+          const: pending
+        introduction: &a4
+          type: string
+          minLength: 1
+          maxLength: 240
+          pattern: \S
+        created_at: &a5
+          $ref: '#/components/schemas/UtcTimestamp'
+        expires_at: &a6
+          $ref: '#/components/schemas/UtcTimestamp'
+        version: &a7
+          $ref: '#/components/schemas/Version'
+    DeclinedRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - event_id
+        - sender
+        - receiver
+        - status
+        - created_at
+        - expires_at
+        - version
+      properties:
+        id: *a1
+        event_id: *a1
+        sender: *a2
+        receiver: *a3
+        status:
+          type: string
+          const: declined
+        introduction: *a4
+        created_at: *a5
+        expires_at: *a6
+        version: *a7
+    WithdrawnRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - event_id
+        - sender
+        - receiver
+        - status
+        - created_at
+        - expires_at
+        - version
+      properties:
+        id: *a1
+        event_id: *a1
+        sender: *a2
+        receiver: *a3
+        status:
+          type: string
+          const: withdrawn
+        introduction: *a4
+        created_at: *a5
+        expires_at: *a6
+        version: *a7
+    Connection:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - event_id
+        - request_id
+        - member_low
+        - member_high
+        - status
+        - connected_at
+        - version
+      properties:
+        id: *a1
+        event_id: *a1
+        request_id: *a1
+        member_low: *a1
+        member_high: *a1
+        status:
+          type: string
+          const: active
+        connected_at:
+          $ref: '#/components/schemas/UtcTimestamp'
+        version: *a7
+    PendingRequestEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PendingRequest'
+    DeclinedRequestEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/DeclinedRequest'
+    WithdrawnRequestEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/WithdrawnRequest'
+    ConnectionEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Connection'

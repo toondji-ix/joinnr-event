@@ -1,0 +1,52 @@
+{
+  "name": "joinnr",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=22.13.0 <23",
+    "pnpm": "12.11.2"
+  },
+  "scripts": {
+    "doctor": "node scripts/doctor.mjs",
+    "setup:local": "node scripts/setup-local.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings=0",
+    "check:repo": "node scripts/check-repo.mjs",
+    "build:packages": "pnpm --filter @joinnr/domain --filter @joinnr/contracts --filter @joinnr/tokens --fail-if-no-match -r build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck",
+    "check": "pnpm check:repo && pnpm format:check && pnpm lint && pnpm contracts:check && pnpm prototype:check && pnpm database:preflight:check && pnpm domain:check && pnpm typecheck",
+    "build": "pnpm build:packages && pnpm --filter @joinnr/api --filter @joinnr/worker --filter @joinnr/web --filter @joinnr/mobile --fail-if-no-match -r build",
+    "dev:web": "pnpm build:packages && pnpm --filter @joinnr/web dev",
+    "dev:api": "pnpm build:packages && pnpm --filter @joinnr/api dev",
+    "dev:mobile": "pnpm build:packages && pnpm --filter @joinnr/mobile dev",
+    "check:worker": "pnpm --filter @joinnr/worker build && pnpm --filter @joinnr/worker start",
+    "infra:up": "docker compose up -d --wait",
+    "infra:status": "docker compose ps",
+    "infra:down": "docker compose down",
+    "audit:dependencies": "pnpm audit --audit-level high",
+    "domain:check": "pnpm --filter @joinnr/domain build && node --test tests/event-schedule.test.mjs tests/resource-version.test.mjs tests/profile-selections.test.mjs",
+    "database:check": "node scripts/check-database.mjs",
+    "database:preflight:check": "node --test tests/database-preflight.test.mjs",
+    "prototype:check": "node --test tests/prototype.test.mjs",
+    "contracts:generate": "node scripts/contracts.mjs --write",
+    "contracts:check": "node scripts/contracts.mjs --check && node --test tests/contracts.test.mjs tests/outbox.test.mjs"
+  },
+  "devDependencies": {
+    "pg": "8.23.1",
+    "node-pg-migrate": "9.0.0",
+    "@types/node": "22.10.5",
+    "eslint": "10.12.0",
+    "@next/eslint-plugin-next": "16.4.2",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.2",
+    "@redocly/openapi-core": "1.34.21",
+    "openapi-typescript": "7.13.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.9.1"
+  }
+}

@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17@sha256:ac08538c6f8b9904c33c8224c5e5706dbe760aca29db1d096972b4052c22a75d
+    environment:
+      POSTGRES_USER: joinnr_test_admin
+      POSTGRES_DB: joinnr_isolation_test
+      POSTGRES_PASSWORD: ${JOINNR_TEST_DB_PASSWORD:?Use pnpm database:check}
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, pg_isready, -U, joinnr_test_admin, -d, joinnr_isolation_test]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+networks:
+  isolated:
+    internal: true

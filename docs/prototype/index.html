@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; form-action 'none'; base-uri 'none'"
+    />
+    <title>Joinnr — design prototype</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f7f6f2;
+        --surface: #fff;
+        --text: #202126;
+        --muted: #555862;
+        --action: #353c8d;
+        --positive: #21634e;
+        --danger: #a02936;
+        --line: #d8d8d2;
+        --focus: #945500;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font:
+          1rem/1.5 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+      }
+      a {
+        color: var(--action);
+        text-underline-offset: 0.2em;
+      }
+      ::selection {
+        background: var(--action);
+        color: var(--surface);
+      }
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 4px;
+      }
+      header,
+      main,
+      footer {
+        max-width: 74rem;
+        margin: auto;
+        padding: 1.5rem;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .brand {
+        font-size: 1.75rem;
+        font-weight: 750;
+        letter-spacing: -0.04em;
+      }
+      .notice {
+        background: var(--text);
+        color: var(--surface);
+        padding: 0.75rem 1.5rem;
+        text-align: center;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
+        gap: 4rem;
+      }
+      h1 {
+        font-size: clamp(2rem, 5vw, 3.5rem);
+        line-height: 1.1;
+        letter-spacing: -0.035em;
+        margin: 1rem 0 1.5rem;
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: 1.5rem;
+        line-height: 1.25;
+        margin: 0 0 1rem;
+      }
+      h3 {
+        font-size: 1.125rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        max-width: 65ch;
+        margin: 0 0 1rem;
+      }
+      nav,
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 1.5rem 0;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button {
+        min-height: 44px;
+        padding: 0.65rem 1rem;
+        border: 1px solid var(--action);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--action);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--action);
+        color: var(--surface);
+      }
+      button.danger {
+        color: var(--danger);
+        border-color: var(--danger);
+      }
+      button:hover {
+        text-decoration: underline;
+        text-underline-offset: 0.2em;
+      }
+      button[aria-current='page'] {
+        background: var(--action);
+        color: var(--surface);
+      }
+      label {
+        display: block;
+        margin: 1rem 0 0.35rem;
+        font-weight: 600;
+      }
+      input:not([type='checkbox']),
+      select,
+      textarea {
+        width: 100%;
+        max-width: 32rem;
+        min-height: 48px;
+        padding: 0.7rem;
+        border: 1px solid var(--muted);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--text);
+      }
+      input {
+        accent-color: var(--action);
+        caret-color: var(--action);
+      }
+      label.check {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        min-height: 44px;
+        font-weight: 400;
+      }
+      input[type='checkbox'] {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      article {
+        border-top: 1px solid var(--line);
+        padding: 1.5rem 0;
+      }
+      aside {
+        border-top: 2px solid var(--text);
+        padding-top: 1.25rem;
+        margin-top: 1rem;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .status {
+        color: var(--positive);
+        font-weight: 600;
+      }
+      .error {
+        color: var(--danger);
+      }
+      .sheet {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--line);
+        overflow-wrap: anywhere;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+      }
+      #announcement {
+        min-height: 1.5rem;
+      }
+      @media (max-width: 48rem) {
+        .layout {
+          grid-template-columns: 1fr;
+          gap: 1.5rem;
+        }
+        header,
+        main,
+        footer {
+          padding: 1rem;
+        }
+        nav button {
+          flex: 1 1 auto;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        button {
+          transition: background-color 150ms ease-out;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="notice">
+      Design prototype · synthetic conference and people · no real admission or sharing
+    </div>
+    <header>
+      <span class="brand">joinnr</span><span>Demo technology conference · Lagos</span
+      ><a href="#main">Skip to content</a>
+    </header>
+    <main id="main">
+      <nav aria-label="Prototype journeys">
+        <button data-screen="join">Join event</button
+        ><button data-screen="profile">My profile</button
+        ><button data-screen="discover">Discover</button
+        ><button data-screen="connections">Connections</button
+        ><button data-screen="organizer">Organizer</button>
+      </nav>
+      <div class="layout">
+        <section>
+          <div id="screen"></div>
+          <p id="announcement" role="status" aria-live="polite"></p>
+        </section>
+        <aside aria-label="Prototype controls">
+          <h2>Explore the states</h2>
+          <p class="muted">
+            These controls simulate conditions for a moderated design review. Nothing is sent or
+            saved outside this page.
+          </p>
+          <label for="condition">Scenario</label
+          ><select id="condition">
+            <option value="ready">Ready</option>
+            <option value="loading">Loading</option>
+            <option value="empty">Empty shortlist</option>
+            <option value="offline">Offline</option>
+            <option value="error">Network error</option>
+            <option value="denied">Permission denied</option>
+            <option value="pending">Pending approval</option>
+            <option value="closed">Networking closed</option>
+            <option value="cancelled">Event cancelled</option>
+            <option value="expired">Access expired</option>
+            <option value="session">Session expired</option>
+          </select>
+          <label class="check"
+            ><input id="peer" type="checkbox" /> Simulate the other person agreeing to share</label
+          >
+          <button id="reset">Reset prototype</button>
+          <p class="muted">
+            Use made-up input only. Reloading clears every draft and simulated choice. QR and
+            sign-in are represented by explicit simulation actions.
+          </p>
+        </aside>
+      </div>
+    </main>
+    <footer>
+      Review artifact, not an attendee app. Native behavior and accessibility require device
+      testing.
+    </footer>
+    <script>
+      const screen = document.querySelector('#screen');
+      const announcement = document.querySelector('#announcement');
+      const state = {
+        screen: 'join',
+        joined: false,
+        step: 0,
+        name: '',
+        code: '',
+        interest: '',
+        goal: '',
+        style: false,
+        networking: false,
+        sent: false,
+        accepted: false,
+        dismissed: false,
+        grant: false,
+        peer: false,
+        condition: 'ready',
+        intro: '',
+      };
+      const escape = (value) =>
+        value
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      const button = (action, label, primary = false) =>
+        `<button data-action="${action}" class="${primary ? 'primary' : ''}">${label}</button>`;
+      function render(focus = false) {
+        announcement.textContent = '';
+        announcement.className = '';
+        document
+          .querySelectorAll('[data-screen]')
+          .forEach((item) =>
+            item.setAttribute(
+              'aria-current',
+              item.dataset.screen === state.screen ? 'page' : 'false',
+            ),
+          );
+        const conditions = {
+          loading: ['Loading this event', 'Please wait. No attendee data is shown while loading.'],
+          offline: [
+            'You are offline',
+            'Your draft is kept in this tab. Nothing has been sent. Reconnect, then try again.',
+          ],
+          error: [
+            'We could not complete that action',
+            'Your input is still here. Try again when the connection is available.',
+          ],
+          denied: ['This event is unavailable', 'Switch events or ask your organizer for access.'],
+          pending: [
+            'Waiting for approval',
+            'Your organizer must approve admission before networking becomes available.',
+          ],
+          closed: [
+            'Networking has closed',
+            'New requests and contact reads are unavailable. Feedback remains subject to the approved cutoff.',
+          ],
+          cancelled: [
+            'This event was cancelled',
+            'Networking and contact access are unavailable. Ask the organizer for support.',
+          ],
+          expired: [
+            'This access link is no longer available',
+            'Ask your organizer for a current link or manual code.',
+          ],
+          session: [
+            'Sign in to continue',
+            'Only non-sensitive draft state may survive sign-in in the future app. This prototype has no authentication.',
+          ],
+        };
+        if (conditions[state.condition]) {
+          const [title, copy] = conditions[state.condition];
+          screen.innerHTML = `<h1 tabindex="-1">${title}</h1><p>${copy}</p>${button('retry', 'Return to ready scenario', true)}`;
+        } else if (state.screen === 'join')
+          screen.innerHTML = `<h1 tabindex="-1">Your next useful conversation starts here.</h1><p>Demo technology conference</p><p class="muted">20 October 2026 · 09:00–18:00 Africa/Lagos<br>Networking: 19–21 October · Synthetic organizer</p><div class="sheet"><h2>Join this event</h2><p>Shared admission in this scenario. Access is not a ticket or proof of attendance.</p><label for="code">Manual access code</label><input id="code" value="${escape(state.code)}" autocomplete="off" aria-describedby="code-help" /><p id="code-help" class="muted">For this simulation, enter DEMO26. A link or scanned QR returns to this same review.</p><div class="actions">${button('code', 'Review code', true)}${button('qr', 'Simulate QR / link return')}</div>${state.joined ? '<p class="status">Admission simulated. Continue to your event profile.</p>' : ''}</div><p>You control networking visibility. Contact details stay private until both people agree.</p>`;
+        else if (state.screen === 'profile') {
+          const steps = [
+            `<h2>Your identity</h2><label for="name">Display name</label><input id="name" value="${escape(state.name)}" /><p class="muted">Visible to eligible attendees in this event. Photo, company and experience are optional.</p>`,
+            `<h2>What interests you?</h2><label for="interest">Choose an interest</label><select id="interest"><option value="">Select an interest</option><option ${state.interest === 'Product design' ? 'selected' : ''}>Product design</option><option ${state.interest === 'Engineering' ? 'selected' : ''}>Engineering</option></select>`,
+            `<h2>What could you exchange?</h2><p>You can offer product feedback and seek engineering advice in this synthetic scenario.</p><label for="goal">Private goal detail (optional)</label><textarea id="goal">${escape(state.goal)}</textarea><p class="muted">Private detail is excluded from the public preview.</p>`,
+            `<h2>Your interaction preferences</h2><p>Optional. Skipping this step does not prevent networking. These are preferences, not a personality diagnosis.</p><label class="check"><input id="style" type="checkbox" ${state.style ? 'checked' : ''} /> I prefer a conversation starter in advance</label>${button('skip', 'Skip style questions')}`,
+            `<h2>Your public preview</h2><div class="sheet"><h3>${escape(state.name) || 'Demo attendee'}</h3><p>${escape(state.interest) || 'Interest not selected'}</p><p>Offers: product feedback · Seeks: engineering advice</p></div><p>Peers do not see your private goal detail, style answer or contacts. Optional background fields would appear only if supplied.</p><label class="check"><input id="networking" type="checkbox" ${state.networking ? 'checked' : ''} /> Enable networking for this event</label><p class="muted">You can pause visibility later. Contact grants are managed separately; pause policy awaits review.</p>`,
+          ];
+          screen.innerHTML = `<h1 tabindex="-1">Your event profile</h1><p class="muted">Step ${state.step + 1} of 5 · Draft in this tab only</p>${steps[state.step]}<div class="actions">${state.step ? button('back', 'Back') : ''}${button('continue', state.step === 4 ? 'Review recommendations' : 'Continue', true)}</div>`;
+        } else if (state.screen === 'discover')
+          screen.innerHTML = `<h1 tabindex="-1">People worth meeting.</h1><p class="muted">Demo technology conference · Synthetic recommendations</p>${!state.networking ? `<p>Enable networking from your profile review to explore this scenario.</p>${button('setup', 'Review profile', true)}` : state.condition === 'empty' ? `<h2>No eligible suggestions yet</h2><p>Try adjusting your goals or check back later. We do not fill the list with people from other events.</p>${button('setup', 'Edit profile')}` : `<article><h2>Demo peer A</h2><p class="muted">Engineer · Optional company omitted</p><p>You seek engineering advice; they offer engineering advice.</p><p>Shared interest: ${escape(state.interest)}</p><details><summary>What is visible on this profile?</summary><p>Public interests and goal summaries only. No private answers or contact fields.</p></details><div class="actions">${button('request', state.sent ? 'Request sent — review status' : 'Review connection request', true)}</div></article>`}`;
+        else if (state.screen === 'connections')
+          screen.innerHTML = `<h1 tabindex="-1">Connections, at your pace.</h1><article><h2>Received · Demo peer B</h2><p>Offers engineering advice; seeks product feedback.</p>${state.dismissed ? '<p>Request unavailable.</p>' : state.accepted ? `<p class="status">Connected. ${state.grant && state.peer && state.condition === 'ready' ? 'Selected contacts are visible by mutual agreement.' : 'Contact details remain private.'}</p>` : `<div class="actions">${button('accept', 'Accept request', true)}${button('decline', 'Decline request')}</div>`}</article>${state.sent ? '<article><h2>Sent · Demo peer A</h2><p>Pending their review. Sending does not create a connection.</p></article>' : ''}${state.accepted ? `<article><h2>Choose what to share</h2><p>Demo verified email is the only field in this scenario. Phone scope is undecided. Work URLs would be labeled self-supplied.</p>${state.grant && state.peer && state.condition === 'ready' ? '<div class="sheet"><h3>Contact exchange unlocked</h3><p>peer-b@example.invalid · Synthetic email</p><p>Both simulated grants are active.</p></div>' : '<p>Waiting for both of you to agree. Contact details are hidden.</p>'}<div class="actions">${button('grant', state.grant ? 'Stop sharing' : 'Share demo verified email', !state.grant)}${button('block', 'Block this person')}</div><p class="muted">Stopping sharing hides future access immediately. Previously copied details cannot be recalled.</p><h2>Did this lead to a useful conversation?</h2><p>Private feedback example. Timing and cutoff require approved policy.</p><div class="actions">${button('feedback', 'Yes')}${button('feedback', 'No')}${button('feedback', 'Not yet')}</div></article>` : ''}`;
+        else
+          screen.innerHTML = `<h1 tabindex="-1">An event ready for people.</h1><p>Organizer view · Demo technology conference</p><label for="event">Assigned event</label><select id="event" disabled aria-describedby="event-help"><option>Demo technology conference</option><option>Demo startup summit</option></select><p id="event-help" class="muted">Event switching is a wireframe specimen; this review stays in the technology conference.</p><article><h2>Access and admission</h2><p>Link, QR and manual code represent the same credential. Approval admission requires an organizer decision.</p><p>Demo code: DEMO26 · No usable QR credential in this artifact.</p>${button('rotate', 'Review access rotation')}</article><article><h2>Networking outcomes</h2><table><caption>Synthetic empty analytics state</caption><tr><th scope="row">Admitted attendees</th><td>No data</td></tr><tr><th scope="row">Meaningful connection pairs</th><td>Not enough data</td></tr><tr><th scope="row">Satisfaction</th><td>Suppressed — fewer than 10 respondents</td></tr></table><p class="muted">No live metrics. Production views need denominators, cutoff, freshness and complementary suppression. Individual contacts and private feedback are never shown here.</p></article>`;
+        if (focus) screen.querySelector('h1')?.focus();
+      }
+      function save() {
+        for (const key of ['name', 'interest', 'goal', 'intro', 'code']) {
+          const input = document.getElementById(key);
+          if (input) state[key] = input.value;
+        }
+        for (const key of ['style', 'networking']) {
+          const input = document.getElementById(key);
+          if (input) state[key] = input.checked;
+        }
+      }
+      document.addEventListener('click', (event) => {
+        const target = event.target.closest('button');
+        if (!target) return;
+        save();
+        if (target.dataset.screen) {
+          state.screen = target.dataset.screen;
+          render(true);
+          return;
+        }
+        const action = target.dataset.action;
+        if (action === 'retry') {
+          state.condition = 'ready';
+          document.querySelector('#condition').value = 'ready';
+        }
+        if (action === 'code' || action === 'qr') {
+          if (
+            action === 'code' &&
+            document.querySelector('#code').value.trim().toUpperCase() !== 'DEMO26'
+          ) {
+            announcement.textContent =
+              'This access code is unavailable. Check the code or ask your organizer.';
+            announcement.className = 'error';
+            return;
+          }
+          state.joined = true;
+          state.screen = 'profile';
+        }
+        if (action === 'back') state.step = Math.max(0, state.step - 1);
+        if (action === 'skip') {
+          state.style = false;
+          state.step = 4;
+        }
+        if (action === 'continue') {
+          if (
+            (state.step === 0 && !state.name.trim()) ||
+            (state.step === 1 && !state.interest) ||
+            (state.step === 4 && !state.networking)
+          ) {
+            announcement.textContent =
+              state.step === 4
+                ? 'Choose whether to enable networking before viewing recommendations.'
+                : 'Complete the required field to continue.';
+            announcement.className = 'error';
+            return;
+          }
+          if (state.step < 4) state.step++;
+          else state.screen = 'discover';
+        }
+        if (action === 'setup') {
+          state.screen = 'profile';
+          state.step = 4;
+        }
+        if (action === 'request') {
+          if (state.sent) state.screen = 'connections';
+          else {
+            screen.innerHTML = `<h1 tabindex="-1">Send a connection request?</h1><p>This shares your public event profile, not your contact details.</p><label for="intro">Short introduction (optional)</label><textarea id="intro" maxlength="300">${escape(state.intro)}</textarea><div class="actions">${button('send', 'Send simulated request', true)}${button('cancel', 'Cancel')}</div>`;
+            screen.querySelector('h1').focus();
+            return;
+          }
+        }
+        if (action === 'send') state.sent = true;
+        if (action === 'accept') state.accepted = true;
+        if (action === 'decline') state.dismissed = true;
+        if (action === 'grant') state.grant = !state.grant;
+        if (action === 'block') {
+          state.accepted = false;
+          state.dismissed = true;
+          state.grant = false;
+        }
+        if (action === 'rotate') {
+          screen.innerHTML = `<h1 tabindex="-1">Replace event access?</h1><p>Previously printed QR codes, links and manual codes will stop working. Existing memberships remain separate.</p><div class="actions">${button('confirm-rotate', 'Simulate rotation', true)}${button('cancel', 'Keep current access')}</div>`;
+          screen.querySelector('h1').focus();
+          return;
+        }
+        render(true);
+        if (action === 'send')
+          announcement.textContent = 'Simulated request sent. Waiting for the other person.';
+        if (action === 'decline')
+          announcement.textContent = 'Simulated request declined. No notification was sent.';
+        if (action === 'feedback')
+          announcement.textContent =
+            'Feedback choice demonstrated. Nothing was submitted; “Not yet” keeps the outcome unanswered.';
+        if (action === 'confirm-rotate')
+          announcement.textContent = 'Rotation simulated. No real credentials were changed.';
+      });
+      document.querySelector('#condition').addEventListener('change', (event) => {
+        save();
+        state.condition = event.target.value;
+        render(true);
+      });
+      document.querySelector('#peer').addEventListener('change', (event) => {
+        save();
+        state.peer = event.target.checked;
+        render();
+      });
+      document.querySelector('#reset').addEventListener('click', () => location.reload());
+      render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "@joinnr/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@joinnr/domain": "workspace:*",
+    "@nestjs/common": "12.1.3",
+    "@nestjs/core": "12.1.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  }
+}

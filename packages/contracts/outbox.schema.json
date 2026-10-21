@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:joinnr:outbox:v1",
+  "title": "Joinnr minimal outbox fact v1",
+  "description": "Transport contract only; not a worker or authorization grant. Resolve current authorized data at consumption. Never embed private values or free text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "type",
+    "aggregate_type",
+    "aggregate_id",
+    "aggregate_version",
+    "event_id",
+    "actor_pseudonym",
+    "occurred_at",
+    "correlation_id"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "type": {
+      "type": "string",
+      "enum": [
+        "event.published.v1",
+        "event.cancelled.v1",
+        "membership.admitted.v1",
+        "profile.changed.v1",
+        "consent.withdrawn.v1",
+        "request.created.v1",
+        "request.accepted.v1",
+        "contact.revoked.v1",
+        "user.erasure_requested.v1"
+      ]
+    },
+    "aggregate_type": {
+      "type": "string",
+      "enum": ["event", "membership", "profile", "consent", "request", "contact_grant", "user"]
+    },
+    "aggregate_id": { "type": "string", "format": "uuid" },
+    "aggregate_version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "event_id": { "type": ["string", "null"], "format": "uuid" },
+    "actor_pseudonym": {
+      "type": "string",
+      "minLength": 22,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "occurred_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
+    "correlation_id": { "type": "string", "format": "uuid" }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "type": { "enum": ["event.published.v1", "event.cancelled.v1"] },
+        "aggregate_type": { "const": "event" },
+        "event_id": { "type": "string" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "membership.admitted.v1" },
+        "aggregate_type": { "const": "membership" },
+        "event_id": { "type": "string" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "profile.changed.v1" },
+        "aggregate_type": { "const": "profile" },
+        "event_id": { "type": "string" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "consent.withdrawn.v1" },
+        "aggregate_type": { "const": "consent" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "enum": ["request.created.v1", "request.accepted.v1"] },
+        "aggregate_type": { "const": "request" },
+        "event_id": { "type": "string" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "contact.revoked.v1" },
+        "aggregate_type": { "const": "contact_grant" },
+        "event_id": { "type": "string" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "user.erasure_requested.v1" },
+        "aggregate_type": { "const": "user" },
+        "event_id": { "type": "null" }
+      }
+    }
+  ]
+}
