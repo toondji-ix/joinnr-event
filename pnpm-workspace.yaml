@@ -5,6 +5,8 @@ packages:
 # Do not execute downloaded package lifecycle scripts during setup.
 ignoreScripts: true
 saveExact: true
+overrides:
+  'xcode@3.0.1>uuid': 11.1.1
 engineStrict: true
 strictPeerDependencies: true
 minimumReleaseAgeStrict: true

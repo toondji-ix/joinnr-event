@@ -26,7 +26,7 @@ const fields = [
 
 // Compare validated fixed-width UTC seconds and normalized decimal fractions.
 // Date milliseconds alone would collapse distinct submillisecond boundaries.
-function instantKey(value: unknown): string | undefined {
+export function instantKey(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z$/.exec(value);
   if (!match) return undefined;

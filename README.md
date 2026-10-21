@@ -1,6 +1,6 @@
 # Joinnr — conference networking MVP blueprint
 
-Blueprint prepared 15 October 2026. Workspace scaffold added 16 October 2026. First technical contract foundation added 19 October 2026. No product features or deployments.
+Blueprint prepared 15 October 2026. Workspace scaffold added 16 October 2026. First technical contract foundation added 19 October 2026. [Phase 5 local domain implementation](docs/phase-5-status.md) includes request transitions and deterministic taxonomy ranking; no end-to-end product features or deployments. The [21 October technical review](docs/technical-completion-review.md) records ten API contracts, partial dependency remediation and outstanding schema/review/integration evidence.
 
 Start with [the setup guide](docs/setup.md), then follow [the concrete execution plan](docs/execution-plan.md). The blueprint below remains the product design baseline.
 
@@ -22,6 +22,8 @@ The active work is [phase-four Architecture & Technical Planning](docs/technical
 
 ## How to interpret this blueprint
 
+The [21 October Phase 1 research brief assessment](docs/research/phase-1-brief-assessment.md) incorporates the supplied brief into discovery planning, distinguishes two recruitment profiles from confirmed pilots, corrects capacity arithmetic and records source/budget/privacy gaps. Brief reconciliation is complete; primary validation and discovery exit remain open.
+
 The [20 October Phase 1–3 completion review](docs/phase-1-3-review.md) adds an ordered evidence checklist, concrete policy alternatives and the remaining low-fidelity frame specifications. Research, pilot confirmations, policy ratification, interactive follow-up frames and design validation remain open.
 
 - **Required** means supplied by the product brief. **Proposed** means a concrete design recommendation, not a claim about existing users, budget, infrastructure or validated behavior.
@@ -40,3 +42,5 @@ On 20 October 2026, [the request lifecycle extension](docs/adr/0004-request-life
 The [current Phase 4 disposition](docs/phase-4-status.md) tracks local verification work and externally deferred evidence. The [native PostgreSQL lab](docs/adr/0007-native-postgresql-verification.md) has passed isolation and logical restore/deletion-replay assertions on PostgreSQL 18.6. Docker is optional. No production migration, pgvector compatibility or external integration is claimed.
 
 The [profile-selection and lab review](docs/adr/0006-profile-contract-and-lab-review.md) expands coverage to nine operations, adds duplicate-selection checks, removes the POST-only contract-test assumption and strengthens failed-transaction/deletion-replay assertions. Local SQL execution is now verified by ADR 0007; independent review and full application database integration remain open.
+
+The [migration and pooled-transaction milestone](docs/adr/0008-migrations-and-pool-transactions.md) selects pinned SQL-first tooling for local foundations and verifies restricted-login pool reuse, migration failure/locking, and three contention fixtures on PostgreSQL 18.6. The server helper remains unwired; test migrations do not implement the product schema or close Phase 4.

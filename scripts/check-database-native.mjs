@@ -192,6 +192,13 @@ try {
   console.log(
     'PASS: real pg_dump/restore and synthetic post-snapshot deletion replay/idempotency.',
   );
+  psql('postgres', 'CREATE DATABASE joinnr_pool_test;');
+  const { verifyPersistence } = await import('./database/verify-persistence.mjs');
+  await verifyPersistence(
+    { host: '127.0.0.1', port, database: 'joinnr_pool_test', user: 'joinnr_test_admin', password },
+    data,
+    scratch,
+  );
 } catch (error) {
   failure = error;
 } finally {

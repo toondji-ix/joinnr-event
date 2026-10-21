@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Joinnr foundation API contracts
-  version: 0.3.0
+  version: 0.4.0
   description: 'Phase-four contract foundation: organization/event creation, access resolution and
     connection request lifecycle and self profile interests/goals. Specifications only; no routes, authentication or database
     enforcement implemented. Examples are synthetic; provider and policy gates remain open.'
@@ -22,6 +22,58 @@ tags:
   - name: Profiles
     description: Self-only event profile updates; taxonomy selections do not grant networking access.
 paths:
+  /events/{eid}/profiles/{mid}:
+    get:
+      operationId: getRelatedPublicProfile
+      summary: Read a related same-event attendee public profile
+      description: >-
+        Resolve the authenticated actor and both memberships from live server records.
+        Require active accounts, active same-event memberships, current networking eligibility,
+        event availability and no block in either direction. Require a currently authorized
+        recommendation, request or connection relation to the target. Recheck relation validity
+        and expiry at read time; possession of an ID or stale recommendation never grants access.
+        Unknown and inaccessible targets receive the same 404. Return only PublicProfile;
+        contacts, private goal detail and assessment data are forbidden even after acceptance.
+        No global directory or arbitrary profile lookup is introduced. Contract only; no route implemented.
+      tags: [Profiles]
+      x-authorization:
+        actor: eligible-event-attendee
+        scope: event-related-profile
+        invariants:
+          - active-same-event-memberships
+          - live-recommendation-request-or-connection
+          - no-block-in-either-direction
+          - no-private-profile-fields
+      parameters:
+        - $ref: '#/components/parameters/EventId'
+        - name: mid
+          in: path
+          required: true
+          description: Target membership in this event; never an authorization credential.
+          schema: { $ref: '#/components/schemas/Uuid' }
+      responses:
+        '200':
+          description: Allowlisted public profile after live authorization.
+          headers:
+            Cache-Control: { $ref: '#/components/headers/PrivateNoStore' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublicProfileEnvelope' }
+              examples:
+                synthetic:
+                  value:
+                    data:
+                      membership_id: 01900000-0000-7000-8000-000000000003
+                      event_id: 01900000-0000-7000-8000-000000000004
+                      display_name: Synthetic attendee
+                      headline: Platform engineer
+                      interests: [Developer platforms, Mentoring, Infrastructure]
+                      goals: [Offer platform mentorship]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /organizations:
     post:
       operationId: createOrganization
@@ -964,6 +1016,12 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    PublicProfileEnvelope:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/PublicProfile' }
     ProfileInterestsInput:
       type: object
       additionalProperties: false

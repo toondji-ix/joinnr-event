@@ -128,6 +128,29 @@ test('only access resolution is public and create mutations require idempotency'
   }
 });
 
+test('related public profile read has live scope invariants and a closed private-data boundary', () => {
+  const operation = document.paths['/events/{eid}/profiles/{mid}'].get;
+  assert.ok(
+    operation['x-authorization'].invariants.includes('live-recommendation-request-or-connection'),
+  );
+  assert.ok(operation['x-authorization'].invariants.includes('no-block-in-either-direction'));
+  assert.ok(operation.responses['404']);
+  const value = operation.responses['200'].content['application/json'].examples.synthetic.value;
+  accepts('PublicProfileEnvelope', value);
+  for (const field of [
+    'email',
+    'phone',
+    'contacts',
+    'private_goals',
+    'style_answers',
+    'user_id',
+    'score',
+  ]) {
+    rejects('PublicProfileEnvelope', { data: { ...value.data, [field]: 'private' } });
+  }
+  rejects('PublicProfileEnvelope', { ...value, contacts: [] });
+});
+
 test('organization contract rejects role/owner injection and blank/oversized names', () => {
   accepts('OrganizationInput', { name: 'Synthetic Organization' });
   for (const value of [{}, { name: '' }, { name: '   ' }, { name: 'a'.repeat(161) }]) {

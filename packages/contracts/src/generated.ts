@@ -1,5 +1,25 @@
 // Generated from ../openapi.yaml. Run pnpm contracts:generate; do not edit.
 export interface paths {
+  '/events/{eid}/profiles/{mid}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read a related same-event attendee public profile
+     * @description Resolve the authenticated actor and both memberships from live server records. Require active accounts, active same-event memberships, current networking eligibility, event availability and no block in either direction. Require a currently authorized recommendation, request or connection relation to the target. Recheck relation validity and expiry at read time; possession of an ID or stale recommendation never grants access. Unknown and inaccessible targets receive the same 404. Return only PublicProfile; contacts, private goal detail and assessment data are forbidden even after acceptance. No global directory or arbitrary profile lookup is introduced. Contract only; no route implemented.
+     */
+    get: operations['getRelatedPublicProfile'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/organizations': {
     parameters: {
       query?: never;
@@ -184,6 +204,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    PublicProfileEnvelope: {
+      data: components['schemas']['PublicProfile'];
+    };
     ProfileInterestsInput: {
       interest_ids: components['schemas']['InterestIds'];
     };
@@ -520,6 +543,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  getRelatedPublicProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Event scope; live membership and resource relationships must be checked. */
+        eid: components['parameters']['EventId'];
+        /** @description Target membership in this event; never an authorization credential. */
+        mid: components['schemas']['Uuid'];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Allowlisted public profile after live authorization. */
+      200: {
+        headers: {
+          'Cache-Control': components['headers']['PrivateNoStore'];
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublicProfileEnvelope'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['Unauthorized'];
+      404: components['responses']['NotFound'];
+      429: components['responses']['RateLimited'];
+      503: components['responses']['Unavailable'];
+    };
+  };
   createOrganization: {
     parameters: {
       query?: never;
